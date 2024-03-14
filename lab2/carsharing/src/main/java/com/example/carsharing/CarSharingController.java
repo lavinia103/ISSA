@@ -81,6 +81,7 @@ public class CarSharingController {
         return ResponseEntity.status(HttpStatus.CREATED).body("Renter registered successfully"); //201
     }
 
+
     private ResponseEntity<String> registerOwner(CarSharingMessage message) {
 
         if (registeredOwners.contains(message.getClientId())) {
@@ -96,29 +97,32 @@ public class CarSharingController {
 
     private ResponseEntity<String> postCar(CarSharingMessage message) {
         if (registeredCars.contains(message.getClientId())) {
-            return ResponseEntity.badRequest().body("Car already posted/registered");
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body("Car already posted/registered"); //202
         }
 
         registeredCars.add(message.getClientId());
-
         return ResponseEntity.status(HttpStatus.CREATED).body("Car posted successfully"); //201
     }
 
     private ResponseEntity<String> requestCar(CarSharingMessage message) {
-        // ...
+        //sa imi iau o lista de masini disponibile in oras -- de ex un buton de refresh care face un get la /carsharing/ si imi da toate masinile disponibile
+        //TODO: daca nu are fuel, trimit inapoi 400 ca nu se poate face request car
+        //TODO: daca e deja ocupata, trimit inapoi 400 ca isRented is true
 
         return ResponseEntity.ok("Car requested successfully");
     }
 
     private ResponseEntity<String> startRental(CarSharingMessage message) {
-        // ...
-
+        // isRented - setam pe true - daca clientul face request printr-un buton de start rental
+        // renter car id - setam idul masinii - de ex pt idul 1 1234 - setam 3 3456 - pt renter 1, setam masina 3
+        //set de date - clientId -> carId
         return ResponseEntity.ok("Rental started successfully");
     }
 
     private ResponseEntity<String> endRental(CarSharingMessage message) {
-        // ...
-
+        // isRented - setam pe false - daca clientul face request printr-un buton de end rental
+        // stergem rented car id - dam clear la id ul masinii setate pt renter
+        //set de date - clientId -/> carId
         return ResponseEntity.ok("Rental ended successfully");
     }
 
