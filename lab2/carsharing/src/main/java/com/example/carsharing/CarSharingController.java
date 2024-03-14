@@ -1,5 +1,6 @@
 package com.example.carsharing;// CarSharingController.java
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -70,37 +71,37 @@ public class CarSharingController {
 
     private ResponseEntity<String> registerRenter(CarSharingMessage message) {
         if (registeredRenters.contains(message.getClientId())) {
-            return ResponseEntity.badRequest().body("Renter already registered");
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body("Renter already registered"); //202
         }
         if (registeredOwners.contains(message.getClientId())) {
             return ResponseEntity.badRequest().body("Renter already registered as Owner with same Client ID\"");
         }
 
         registeredRenters.add(message.getClientId());
-        return ResponseEntity.ok("Renter registered successfully");
+        return ResponseEntity.status(HttpStatus.CREATED).body("Renter registered successfully"); //201
     }
 
     private ResponseEntity<String> registerOwner(CarSharingMessage message) {
 
         if (registeredOwners.contains(message.getClientId())) {
-            return ResponseEntity.badRequest().body("Owner already registered");
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body("Owner already registered"); //202
         }
         if(registeredRenters.contains(message.getClientId())) {
             return ResponseEntity.badRequest().body("Owner already registered as Renter with same Client ID");
         }
 
         registeredOwners.add(message.getClientId());
-        return ResponseEntity.ok("Owner registered successfully");
+        return ResponseEntity.status(HttpStatus.CREATED).body("Owner registered successfully"); //201
     }
 
     private ResponseEntity<String> postCar(CarSharingMessage message) {
         if (registeredCars.contains(message.getClientId())) {
-            return ResponseEntity.badRequest().body("Car already posted");
+            return ResponseEntity.badRequest().body("Car already posted/registered");
         }
 
         registeredCars.add(message.getClientId());
 
-        return ResponseEntity.ok("Car posted successfully");
+        return ResponseEntity.status(HttpStatus.CREATED).body("Car posted successfully"); //201
     }
 
     private ResponseEntity<String> requestCar(CarSharingMessage message) {
