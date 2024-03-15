@@ -3,7 +3,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.*;
 
@@ -12,11 +15,14 @@ import java.util.*;
 public class CarSharingController {
 
     /*private final RenterService renterService;*/
+    @Autowired
+    private CarConnectionHandler carConnectionHandler;
 
     private final Set<String> registeredRenters = new HashSet<>();
     private final Set<String> registeredOwners = new HashSet<>();
     private final Set<String> registeredCars = new HashSet<>();
     private final List<String> operations = new ArrayList<>();
+    private final Map<String, Car> availableCars = new HashMap<>();
 
     //I decided to remove the renterService, for this lab it's enough to have the data in the controller, and not have a separate service for renter, owner, car, etc.
     //Is it required to have a separate service for renter, owner, car, etc.? or logic implemented for the car sharing operations? as if client can't access same car, if it's occupied, etc.
@@ -24,6 +30,23 @@ public class CarSharingController {
     public CarSharingController(RenterService renterService) {
         this.renterService = renterService;
     }*/
+
+    public void removeAvailableCar(String carId) {
+        availableCars.remove(carId);
+    }
+
+    public Set<String> getRegisteredCars() {
+        return registeredCars;
+    }
+
+    public void addAvailableCar(String carId, int fuelLevel, boolean isLocked) {
+        Car car = new Car(carId, fuelLevel, isLocked);
+        availableCars.put(carId, car);
+    }
+
+    public Map<String, Car> getAvailableCars() {
+        return availableCars;
+    }
 
     @PostMapping("/")
     public ResponseEntity<String> processMessage(@RequestBody CarSharingMessage message) {
@@ -96,11 +119,13 @@ public class CarSharingController {
     }
 
     private ResponseEntity<String> postCar(CarSharingMessage message) {
-        if (registeredCars.contains(message.getClientId())) {
+        String carId = message.getPayload();
+
+        if (registeredCars.contains(carId)) {
             return ResponseEntity.status(HttpStatus.ACCEPTED).body("Car already posted/registered"); //202
         }
 
-        registeredCars.add(message.getClientId());
+        registeredCars.add(carId);
         return ResponseEntity.status(HttpStatus.CREATED).body("Car posted successfully"); //201
     }
 
@@ -116,6 +141,25 @@ public class CarSharingController {
         // isRented - setam pe true - daca clientul face request printr-un buton de start rental
         // renter car id - setam idul masinii - de ex pt idul 1 1234 - setam 3 3456 - pt renter 1, setam masina 3
         //set de date - clientId -> carId
+        String carId = message.getPayload();
+
+        if (!availableCars.containsKey(carId)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Car not available for rental");
+        }
+
+        Car car = availableCars.remove(carId);
+
+        WebSocketSession session = carConnectionHandler.getSession(carId);
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not find WebSocket session for car");
+        }
+
+        try {
+            session.sendMessage(new TextMessage("start rental"));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to send start rental message to car");
+        }
+
         return ResponseEntity.ok("Rental started successfully");
     }
 
@@ -123,6 +167,25 @@ public class CarSharingController {
         // isRented - setam pe false - daca clientul face request printr-un buton de end rental
         // stergem rented car id - dam clear la id ul masinii setate pt renter
         //set de date - clientId -/> carId
+
+        String carId = message.getPayload();
+
+        WebSocketSession session = carConnectionHandler.getSession(carId);
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not find WebSocket session for car");
+        }
+
+        try {
+            session.sendMessage(new TextMessage("stop rental"));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to send stop rental message to car");
+        }
+
+        Car car = carConnectionHandler.getCar(carId);
+        if (car != null && car.getFuelLevel() > 0) {
+            availableCars.put(carId, car);
+        }
+
         return ResponseEntity.ok("Rental ended successfully");
     }
 
