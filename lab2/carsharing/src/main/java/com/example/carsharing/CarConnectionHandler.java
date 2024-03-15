@@ -27,8 +27,19 @@ public class CarConnectionHandler extends TextWebSocketHandler {
     public void handleTextMessage(@NonNull WebSocketSession session, TextMessage message) {
         logger.info("Received message: {}", message.getPayload());
 
-        String carId = message.getPayload();
+        String[] carDetails = message.getPayload().split(",");
 
+        String carId = carDetails[0];
+        int fuelLevel = 0;
+        boolean isLocked = false;
+
+        if (carDetails.length > 2) {
+            fuelLevel = Integer.parseInt(carDetails[1]);
+            isLocked = Boolean.parseBoolean(carDetails[2]);
+        } else if (!carSharingController.getRegisteredCars().containsKey(carId)) {
+            logger.info("Received carId is not registered: {}", carId);
+            return;
+        }
         if (!sessions.containsKey(carId)) {
             sessions.put(carId, session);
         }
@@ -36,13 +47,14 @@ public class CarConnectionHandler extends TextWebSocketHandler {
         logger.info("Registered cars: {}", carSharingController.getRegisteredCars());
         logger.info("Available cars: {}", carSharingController.getAvailableCars());
 
-        if (carSharingController.getRegisteredCars().contains(carId)) {
+        //bug - in sendAvailableCar, there is fuel info and other garbage data, which is not required
+        if (carSharingController.getRegisteredCars().keySet().contains(carId)) {
             try {
                 logger.info("Sending back message connected");
                 session.sendMessage(new TextMessage("connected"));
 
-                cars.putIfAbsent(carId, new Car(carId, 100, true));
-                carSharingController.addAvailableCar(carId, 100, true);
+                cars.putIfAbsent(carId, new Car(carId, fuelLevel, isLocked));
+                carSharingController.addAvailableCar(carId, fuelLevel, isLocked);
             }
             catch(IOException exp) {
                 logger.error("IO Exception caught: {}", exp.getMessage());
@@ -50,17 +62,6 @@ public class CarConnectionHandler extends TextWebSocketHandler {
         } else if (sessions.containsKey(carId)) {
             // This is a response from a car client
             logger.info("Getting response from client");
-            String[] carDetails = message.getPayload().split(",");
-
-            int fuelLevel = 0;
-            boolean isLocked = true;
-            if(carDetails.length > 1) {
-                fuelLevel = Integer.parseInt(carDetails[0]);
-                isLocked = Boolean.parseBoolean(carDetails[1]);
-            } else {
-                fuelLevel = Integer.parseInt(carDetails[0]);
-                logger.info("fuel update: {}", fuelLevel);
-            }
 
             Car car = cars.get(carId);
             if (car != null) {

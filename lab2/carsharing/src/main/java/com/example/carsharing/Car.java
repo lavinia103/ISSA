@@ -34,4 +34,8 @@ public class Car {
     public void setFuelLevel(int fuelLevel) {
         this.fuelLevel = fuelLevel;
     }
+
+    public boolean isLocked() {
+        return isLocked;
+    }
 }

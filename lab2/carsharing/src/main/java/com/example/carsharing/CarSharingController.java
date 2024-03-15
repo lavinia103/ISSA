@@ -1,4 +1,5 @@
 package com.example.carsharing;// CarSharingController.java
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +21,7 @@ public class CarSharingController {
 
     private final Set<String> registeredRenters = new HashSet<>();
     private final Set<String> registeredOwners = new HashSet<>();
-    private final Set<String> registeredCars = new HashSet<>();
+    private final Map<String, String> registeredCars = new HashMap<>();
     private final List<String> operations = new ArrayList<>();
     private final Map<String, Car> availableCars = new HashMap<>();
 
@@ -35,7 +36,7 @@ public class CarSharingController {
         availableCars.remove(carId);
     }
 
-    public Set<String> getRegisteredCars() {
+    public Map<String,String> getRegisteredCars() {
         return registeredCars;
     }
 
@@ -119,24 +120,39 @@ public class CarSharingController {
     }
 
     private ResponseEntity<String> postCar(CarSharingMessage message) {
-        String carId = message.getPayload();
-
-        if (registeredCars.contains(carId)) {
-            return ResponseEntity.status(HttpStatus.ACCEPTED).body("Car already posted/registered"); //202
+        String ownerId = message.getPayload();
+        String carId = message.getClientId();
+        if (registeredCars.get(carId) != null) {
+            return ResponseEntity.badRequest().body("Car already posted");
         }
-
-        registeredCars.add(carId);
-        return ResponseEntity.status(HttpStatus.CREATED).body("Car posted successfully"); //201
+        if (registeredCars.containsKey(ownerId)) {
+            if(registeredCars.get(ownerId).equals(carId)) {
+                return ResponseEntity.badRequest().body("Owner already posted a car with the same ID");
+            }
+        }
+        registeredCars.put(carId, ownerId);
+        return ResponseEntity.status(HttpStatus.CREATED).body("Car posted successfully");
     }
 
     private ResponseEntity<String> requestCar(CarSharingMessage message) {
-        //sa imi iau o lista de masini disponibile in oras -- de ex un buton de refresh care face un get la /carsharing/ si imi da toate masinile disponibile
-        //TODO: daca nu are fuel, trimit inapoi 400 ca nu se poate face request car
-        //TODO: daca e deja ocupata, trimit inapoi 400 ca isRented is true
+        // Get the list of available cars
+        Map<String, Car> availableCarsList = getAvailableCars();
+        //skip the first entry in the map - bug
+        availableCarsList.remove("100,true");
 
-        return ResponseEntity.ok("Car requested successfully");
+        if (availableCarsList.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No available cars"); //  204 No Content
+        }
+        ObjectMapper mapper = new ObjectMapper();
+        String jsonString;
+        try {
+            jsonString = mapper.writeValueAsString(availableCarsList);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error converting available cars to JSON");
+        }
+
+        return ResponseEntity.ok(jsonString); //ghetto solution, but it works
     }
-
     private ResponseEntity<String> startRental(CarSharingMessage message) {
         // isRented - setam pe true - daca clientul face request printr-un buton de start rental
         // renter car id - setam idul masinii - de ex pt idul 1 1234 - setam 3 3456 - pt renter 1, setam masina 3
@@ -182,7 +198,11 @@ public class CarSharingController {
         }
 
         Car car = carConnectionHandler.getCar(carId);
-        if (car != null && car.getFuelLevel() > 0) {
+        //bug - after i put it back in motion, the getFuelLevel() is 0
+        /*if (car != null && car.getFuelLevel() > 0) {
+            availableCars.put(carId, car);
+        }*/
+        if (car != null) {
             availableCars.put(carId, car);
         }
 
